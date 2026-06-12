@@ -24,13 +24,26 @@
 
         <receiver
             android:name=".widget.LmpWidgetReceiver"
-            android:exported="true">
+            android:exported="true"
+            android:label="LMP · 2×2">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/lmp_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.LmpWideWidgetReceiver"
+            android:exported="true"
+            android:label="LMP · 4×2">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/lmp_widget_wide_info" />
         </receiver>
     </application>
 

@@ -49,6 +49,7 @@ import kotlin.math.roundToInt
 
 private val SMALL = DpSize(110.dp, 110.dp)
 private val MEDIUM = DpSize(250.dp, 110.dp)
+private val LARGE = DpSize(330.dp, 150.dp)
 
 /**
  * Home-screen widget from the design handoff: a sky-gradient tile whose color
@@ -57,7 +58,7 @@ private val MEDIUM = DpSize(250.dp, 110.dp)
  */
 class LmpWidget : GlanceAppWidget() {
 
-    override val sizeMode = SizeMode.Responsive(setOf(SMALL, MEDIUM))
+    override val sizeMode = SizeMode.Responsive(setOf(SMALL, MEDIUM, LARGE))
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val state = WidgetStateStore.load(context)
@@ -76,10 +77,11 @@ class LmpWidget : GlanceAppWidget() {
                     contentScale = ContentScale.FillBounds,
                     modifier = GlanceModifier.fillMaxSize(),
                 )
-                if (size.width >= MEDIUM.width) {
-                    MediumContent(state)
-                } else {
-                    SmallContent(state)
+                when {
+                    size.width >= LARGE.width && size.height >= LARGE.height ->
+                        MediumContent(state, big = true)
+                    size.width >= MEDIUM.width -> MediumContent(state)
+                    else -> SmallContent(state)
                 }
             }
         }
@@ -118,23 +120,28 @@ private fun SmallContent(state: WidgetState) {
 }
 
 @Composable
-private fun MediumContent(state: WidgetState) {
-    Row(modifier = GlanceModifier.fillMaxSize().padding(16.dp)) {
+private fun MediumContent(state: WidgetState, big: Boolean = false) {
+    val pad = if (big) 20.dp else 16.dp
+    val priceSize = if (big) 58.sp else 46.sp
+    val labelSize = if (big) 12.sp else 11.sp
+    val chartHeight = if (big) 68.dp else 52.dp
+    Row(modifier = GlanceModifier.fillMaxSize().padding(pad)) {
         // left — price block
-        Column(modifier = GlanceModifier.width(120.dp).fillMaxSize()) {
+        Column(modifier = GlanceModifier.width(if (big) 150.dp else 120.dp).fillMaxSize()) {
             Text(
                 "NYISO · ${shortZone(state.zoneName).uppercase(Locale.US)}",
-                style = TextStyle(color = WHITE_DIM, fontSize = 11.sp, fontWeight = FontWeight.Bold),
+                style = TextStyle(color = WHITE_DIM, fontSize = labelSize, fontWeight = FontWeight.Bold),
                 maxLines = 1,
             )
             Spacer(GlanceModifier.defaultWeight())
             Text(
                 state.lmp?.let { "$${it.roundToInt()}" } ?: "—",
-                style = TextStyle(color = WHITE, fontSize = 46.sp, fontWeight = FontWeight.Normal),
+                style = TextStyle(color = WHITE, fontSize = priceSize, fontWeight = FontWeight.Normal),
             )
             Text(
-                "/MWh",
-                style = TextStyle(color = WHITE_DIM, fontSize = 12.sp, fontWeight = FontWeight.Medium),
+                "/MWh · ${shortZone(state.zoneName)}",
+                style = TextStyle(color = WHITE_DIM, fontSize = labelSize, fontWeight = FontWeight.Medium),
+                maxLines = 1,
             )
         }
         Spacer(GlanceModifier.width(14.dp))
@@ -145,7 +152,7 @@ private fun MediumContent(state: WidgetState) {
                     provider = ImageProvider(sparklineBitmap(state.curve)),
                     contentDescription = "Today's price curve",
                     contentScale = ContentScale.Fit,
-                    modifier = GlanceModifier.fillMaxWidth().height(52.dp),
+                    modifier = GlanceModifier.fillMaxWidth().height(chartHeight),
                 )
             }
             Spacer(GlanceModifier.defaultWeight())
@@ -153,14 +160,14 @@ private fun MediumContent(state: WidgetState) {
                 state.loadMw?.let {
                     Text(
                         "Load ${formatMw(it)}",
-                        style = TextStyle(color = WHITE_DIM, fontSize = 11.sp),
+                        style = TextStyle(color = WHITE_DIM, fontSize = labelSize),
                     )
                 }
                 Spacer(GlanceModifier.defaultWeight())
                 state.cleanPct?.let {
                     Text(
                         "${it.roundToInt()}% clean",
-                        style = TextStyle(color = WHITE_DIM, fontSize = 11.sp, fontWeight = FontWeight.Bold),
+                        style = TextStyle(color = WHITE_DIM, fontSize = labelSize, fontWeight = FontWeight.Bold),
                     )
                 }
             }
@@ -170,7 +177,7 @@ private fun MediumContent(state: WidgetState) {
                     provider = ImageProvider(mixStripBitmap(state.mix)),
                     contentDescription = "Fuel mix",
                     contentScale = ContentScale.FillBounds,
-                    modifier = GlanceModifier.fillMaxWidth().height(8.dp),
+                    modifier = GlanceModifier.fillMaxWidth().height(if (big) 10.dp else 8.dp),
                 )
             }
         }
@@ -242,7 +249,8 @@ private fun mixStripBitmap(mix: List<WidgetMixEntry>, w: Int = 480, h: Int = 24)
     return bitmap
 }
 
-class LmpWidgetReceiver : GlanceAppWidgetReceiver() {
+/** Shared receiver behavior for both widget sizes. */
+abstract class BaseLmpWidgetReceiver : GlanceAppWidgetReceiver() {
 
     override val glanceAppWidget: GlanceAppWidget = LmpWidget()
 
@@ -265,6 +273,21 @@ class LmpWidgetReceiver : GlanceAppWidgetReceiver() {
 
     override fun onDisabled(context: Context) {
         super.onDisabled(context)
-        WidgetRefreshWorker.cancel(context)
+        // The periodic job is shared: cancel only when no widget of either
+        // size remains on the home screen
+        val manager = android.appwidget.AppWidgetManager.getInstance(context)
+        val remaining = listOf(
+            LmpWidgetReceiver::class.java,
+            LmpWideWidgetReceiver::class.java,
+        ).sumOf {
+            manager.getAppWidgetIds(android.content.ComponentName(context, it)).size
+        }
+        if (remaining == 0) WidgetRefreshWorker.cancel(context)
     }
 }
+
+/** 2×2 — price + zone + trend. */
+class LmpWidgetReceiver : BaseLmpWidgetReceiver()
+
+/** 4×2 — adds today's curve, load, % clean, and the fuel-mix strip. */
+class LmpWideWidgetReceiver : BaseLmpWidgetReceiver()

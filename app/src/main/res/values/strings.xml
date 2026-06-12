@@ -2,4 +2,5 @@
 <resources>
     <string name="app_name">LMP Near Me</string>
     <string name="widget_description">Current LBMP at your NYISO zone</string>
+    <string name="widget_wide_description">LBMP, today\'s price curve, load, and fuel mix</string>
 </resources>
