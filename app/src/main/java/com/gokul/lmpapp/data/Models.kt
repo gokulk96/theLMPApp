@@ -15,7 +15,11 @@ data class NodeInfo(
 
 enum class NodeType { HUB, ZONE }
 
-/** One row of the MISO 5-minute consolidated LMP table. All values $/MWh. */
+/**
+ * Current price at one pricing node, in $/MWh. Components are normalized to
+ * the additive convention lmp = energy + congestion + loss regardless of the
+ * source market's published sign convention.
+ */
 data class NodePrice(
     val cpNodeName: String,
     val lmp: Double,

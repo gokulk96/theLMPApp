@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- NYISO's mis.nyiso.com historically serves plain HTTP; permit cleartext
+     for that host only, as a fallback when the HTTPS attempt fails. -->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">mis.nyiso.com</domain>
+    </domain-config>
+</network-security-config>

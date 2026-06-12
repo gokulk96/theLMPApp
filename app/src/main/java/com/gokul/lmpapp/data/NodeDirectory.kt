@@ -27,8 +27,8 @@ class NodeDirectory(private val nodes: List<NodeInfo>) {
         node.matchKeys.firstNotNullOfOrNull { snapshot.prices[it] }
 
     companion object {
-        fun loadFromAssets(context: Context): NodeDirectory =
-            context.assets.open("miso_nodes.csv").bufferedReader().useLines { lines ->
+        fun loadFromAssets(context: Context, assetFile: String): NodeDirectory =
+            context.assets.open(assetFile).bufferedReader().useLines { lines ->
                 NodeDirectory(lines.mapNotNull(::parseLine).toList())
             }
 

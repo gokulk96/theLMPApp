@@ -21,13 +21,13 @@ class MisoApiClient(
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .build(),
-) {
+) : MarketDataSource {
 
-    suspend fun fetchLmpSnapshot(): LmpSnapshot = withContext(Dispatchers.IO) {
+    override suspend fun fetchLmpSnapshot(): LmpSnapshot = withContext(Dispatchers.IO) {
         parseLmpSnapshot(get(LMP_URL))
     }
 
-    suspend fun fetchFuelMix(): FuelMix = withContext(Dispatchers.IO) {
+    override suspend fun fetchFuelMix(): FuelMix = withContext(Dispatchers.IO) {
         parseFuelMix(get(FUEL_MIX_URL))
     }
 

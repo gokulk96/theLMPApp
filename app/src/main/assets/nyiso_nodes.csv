@@ -1,0 +1,15 @@
+# NYISO load zone directory with approximate geographic coordinates.
+# Zone names match the "Name" column of mis.nyiso.com realtime_zone.csv.
+# Coordinates are a representative point within each zone.
+# nodeId,aliases,displayName,type,lat,lon
+WEST,,West (Zone A) - Buffalo,ZONE,42.89,-78.88
+GENESE,,Genesee (Zone B) - Rochester,ZONE,43.16,-77.61
+CENTRL,,Central (Zone C) - Syracuse,ZONE,43.05,-76.15
+NORTH,,North (Zone D) - Plattsburgh,ZONE,44.70,-73.45
+MHK VL,,Mohawk Valley (Zone E) - Utica,ZONE,43.10,-75.23
+CAPITL,,Capital (Zone F) - Albany,ZONE,42.65,-73.75
+HUD VL,,Hudson Valley (Zone G) - Poughkeepsie,ZONE,41.70,-73.92
+MILLWD,,Millwood (Zone H),ZONE,41.20,-73.80
+DUNWOD,,Dunwoodie (Zone I) - Yonkers,ZONE,40.94,-73.86
+N.Y.C.,NYC,New York City (Zone J),ZONE,40.75,-73.99
+LONGIL,,Long Island (Zone K),ZONE,40.79,-73.13

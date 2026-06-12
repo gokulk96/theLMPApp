@@ -1,9 +1,9 @@
 package com.gokul.lmpapp.data
 
-/** Single entry point the UI layer uses for market data. */
+/** Live data plus node directory for one market. */
 class LmpRepository(
-    private val api: MisoApiClient,
-    private val directory: NodeDirectory,
+    private val api: MarketDataSource,
+    val directory: NodeDirectory,
 ) {
     suspend fun nearbyNodes(lat: Double, lon: Double): Pair<String, List<NearbyNode>> {
         val snapshot = api.fetchLmpSnapshot()
