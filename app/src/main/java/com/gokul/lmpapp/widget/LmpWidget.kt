@@ -44,6 +44,8 @@ import androidx.glance.unit.ColorProvider
 import com.gokul.lmpapp.MainActivity
 import com.gokul.lmpapp.ui.theme.Sky
 import com.gokul.lmpapp.ui.theme.SkyPalette
+import java.time.LocalDateTime
+import java.time.ZoneId
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -62,9 +64,10 @@ class LmpWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val state = WidgetStateStore.load(context)
+        val hourET = LocalDateTime.now(ZoneId.of("America/New_York")).hour
         provideContent {
             val size = LocalSize.current
-            val sky = Sky.forPrice(state.lmp ?: 40.0)
+            val sky = Sky.forPriceAndTime(state.lmp ?: 40.0, hourET)
             Box(
                 modifier = GlanceModifier
                     .fillMaxSize()

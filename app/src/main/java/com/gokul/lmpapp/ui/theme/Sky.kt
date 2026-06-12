@@ -49,6 +49,15 @@ object Sky {
         condition = "Peak demand on the grid",
     )
 
+    // Deep near-black navy used between 22:00 and 05:00 ET.
+    private val NIGHT = SkyPalette(
+        name = "night",
+        top = Color(0xFF070711), mid = Color(0xFF0C1829),
+        bot = Color(0xFF142040), glow = Color(0xFF1A2B4A),
+        verdict = "Overnight rates",
+        condition = "Grid demand is low overnight",
+    )
+
     /** Tier thresholds in $/MWh, from the design: <22, <55, <95, else peak. */
     fun forPrice(price: Double): SkyPalette = when {
         price < 22 -> CLEAN
@@ -56,6 +65,43 @@ object Sky {
         price < 95 -> HIGH
         else -> PEAK
     }
+
+    /**
+     * Returns a sky palette that reflects both price tier and time of day.
+     * During nighttime hours (22:00–05:00 ET) the sky fades to near-black,
+     * mirroring how Apple Weather darkens at night. Dawn (05–07) and dusk
+     * (20–22) are smooth linear transitions; verdicts always reflect price.
+     */
+    fun forPriceAndTime(price: Double, hourET: Int): SkyPalette {
+        val day = forPrice(price)
+        val t = dayFactor(hourET)
+        if (t >= 1f) return day
+        return day.copy(
+            name = if (t < 0.5f) "night" else day.name,
+            top = blendColor(NIGHT.top, day.top, t),
+            mid = blendColor(NIGHT.mid, day.mid, t),
+            bot = blendColor(NIGHT.bot, day.bot, t),
+            glow = blendColor(NIGHT.glow, day.glow, t),
+        )
+    }
+
+    /**
+     * 0.0 = full night, 1.0 = full day.
+     * Dawn 05:00–07:00 and dusk 20:00–22:00 ramp linearly.
+     */
+    private fun dayFactor(hourET: Int): Float = when {
+        hourET in 7..19 -> 1f
+        hourET == 5 || hourET == 6 -> (hourET - 5) / 2f
+        hourET == 20 || hourET == 21 -> (22 - hourET) / 2f
+        else -> 0f
+    }
+
+    private fun blendColor(a: Color, b: Color, t: Float) = Color(
+        red = a.red + (b.red - a.red) * t,
+        green = a.green + (b.green - a.green) * t,
+        blue = a.blue + (b.blue - a.blue) * t,
+        alpha = 1f,
+    )
 
     /** Low→high gradient used by the daily-range bar. */
     val rangeGradient = listOf(

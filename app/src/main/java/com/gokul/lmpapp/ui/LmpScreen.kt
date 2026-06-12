@@ -46,6 +46,8 @@ import com.gokul.lmpapp.data.NearbyNode
 import com.gokul.lmpapp.ui.theme.Sky
 import com.gokul.lmpapp.ui.theme.fuelColor
 import com.gokul.lmpapp.ui.theme.isCarbonFree
+import java.time.LocalTime
+import java.time.ZoneId
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -66,7 +68,8 @@ fun LmpScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val price = state.nearest?.price?.lmp
-    val sky = Sky.forPrice(price ?: 40.0)
+    val hourET = LocalTime.now(ZoneId.of("America/New_York")).hour
+    val sky = Sky.forPriceAndTime(price ?: 40.0, hourET)
 
     Box(
         modifier = Modifier
