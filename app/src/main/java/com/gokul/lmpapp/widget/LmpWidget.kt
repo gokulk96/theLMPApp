@@ -47,8 +47,8 @@ import com.gokul.lmpapp.ui.theme.SkyPalette
 import java.util.Locale
 import kotlin.math.roundToInt
 
-private val SMALL = DpSize(160.dp, 160.dp)
-private val MEDIUM = DpSize(280.dp, 150.dp)
+private val SMALL = DpSize(110.dp, 110.dp)
+private val MEDIUM = DpSize(250.dp, 110.dp)
 
 /**
  * Home-screen widget from the design handoff: a sky-gradient tile whose color
@@ -249,6 +249,18 @@ class LmpWidgetReceiver : GlanceAppWidgetReceiver() {
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
         WidgetRefreshWorker.schedule(context)
+        WidgetRefreshWorker.refreshNow(context)
+    }
+
+    override fun onUpdate(
+        context: Context,
+        appWidgetManager: android.appwidget.AppWidgetManager,
+        appWidgetIds: IntArray,
+    ) {
+        super.onUpdate(context, appWidgetManager, appWidgetIds)
+        // Covers re-added widgets and launcher restarts where the saved
+        // state may be empty or stale
+        WidgetRefreshWorker.refreshNow(context)
     }
 
     override fun onDisabled(context: Context) {
