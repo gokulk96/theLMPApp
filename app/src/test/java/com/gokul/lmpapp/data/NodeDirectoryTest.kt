@@ -25,6 +25,16 @@ class NodeDirectoryTest {
     }
 
     @Test
+    fun `findByNodeId is case-insensitive`() {
+        val directory = NodeDirectory(
+            listOf(NodeDirectory.parseLine("N.Y.C.,NYC,New York City (Zone J),ZONE,40.75,-73.99")!!)
+        )
+
+        assertEquals("N.Y.C.", directory.findByNodeId("n.y.c.")!!.nodeId)
+        assertNull(directory.findByNodeId("LONGIL"))
+    }
+
+    @Test
     fun `haversine distance Minneapolis to Duluth is about 220 km`() {
         val km = NodeDirectory.haversineKm(44.98, -93.27, 46.79, -92.10)
         assertEquals(220.0, km, 15.0)

@@ -14,6 +14,9 @@ class NodeDirectory(private val nodes: List<NodeInfo>) {
      * by distance from ([lat], [lon]). Directory entries that have no price in
      * the snapshot are kept (price = null) so the UI can say so explicitly.
      */
+    fun findByNodeId(nodeId: String): NodeInfo? =
+        nodes.firstOrNull { it.nodeId.equals(nodeId, ignoreCase = true) }
+
     fun nearestNodes(lat: Double, lon: Double, snapshot: LmpSnapshot?): List<NearbyNode> =
         nodes.map { node ->
             NearbyNode(

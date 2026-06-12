@@ -19,6 +19,20 @@ Like a weather app, but for electricity prices.
 - Shows the NYISO fuel mix as share bars (MW and % per category).
 - Refresh cadence while the app is open: **LBMP + load every 5 minutes,
   fuel mix every 60 minutes**, plus a manual refresh button.
+- **Home-screen widget** (Jetpack Glance) showing the zone name, LBMP, and
+  interval timestamp; tap to open the app.
+
+## Widget
+
+Long-press the home screen → Widgets → LMP Near Me. Notes:
+
+- The widget reuses the **zone the app last resolved** — it never requests
+  location in the background (defaults to N.Y.C. Zone J before first run).
+- A WorkManager job refreshes it roughly every **30 minutes**. Android
+  enforces a 15-minute minimum for periodic background work and may batch
+  it to save battery, so the widget cannot match the 5-minute in-app
+  cadence. Opening the app also pushes a fresh price to the widget
+  immediately.
 
 ## Data sources
 
@@ -79,6 +93,10 @@ app/src/main/java/com/gokul/lmpapp/
 │   ├── NodeDirectory.kt         # bundled zone CSV + haversine nearest-zone
 │   └── LmpRepository.kt         # joins live prices with the directory
 ├── location/LocationProvider.kt # Fused + LocationManager fallback
+├── widget/
+│   ├── LmpWidget.kt             # Glance widget UI + receiver
+│   ├── WidgetRefreshWorker.kt   # 30-min WorkManager background refresh
+│   └── WidgetStateStore.kt      # last-resolved zone shared with the app
 └── ui/
     ├── LmpViewModel.kt          # state + 5-min / hourly refresh loops
     ├── LmpScreen.kt             # LBMP card, load card, zones, fuel mix
@@ -90,5 +108,5 @@ app/src/main/assets/nyiso_nodes.csv   # 11 NYISO zones with coordinates
 
 - Day-ahead vs real-time LBMP comparison (`damlbmp` feed).
 - LBMP history sparkline from the accumulated daily file.
-- Home-screen widget and price-spike notifications via WorkManager.
+- Price-spike notifications via WorkManager.
 - Other ISOs behind the same `MarketDataSource` interface.

@@ -11,6 +11,10 @@ import com.gokul.lmpapp.data.NodeDirectory
 import com.gokul.lmpapp.data.NyisoApiClient
 import com.gokul.lmpapp.location.LocationProvider
 import com.gokul.lmpapp.location.UserLocation
+import com.gokul.lmpapp.widget.LmpWidget
+import com.gokul.lmpapp.widget.WidgetState
+import com.gokul.lmpapp.widget.WidgetStateStore
+import androidx.glance.appwidget.updateAll
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -107,10 +111,29 @@ class LmpViewModel(application: Application) : AndroidViewModel(application) {
                     isLoadingLmp = false,
                 )
             }
+            syncWidget(refId, nodes)
         } catch (e: Exception) {
             _uiState.update {
                 it.copy(isLoadingLmp = false, lmpError = e.message ?: "Failed to load LMP data")
             }
+        }
+    }
+
+    /** Keeps the home-screen widget showing the zone the app last resolved. */
+    private suspend fun syncWidget(refId: String, nodes: List<NearbyNode>) {
+        val nearest = nodes.firstOrNull { it.price != null } ?: return
+        runCatching {
+            WidgetStateStore.save(
+                getApplication(),
+                WidgetState(
+                    zoneId = nearest.node.nodeId,
+                    zoneName = nearest.node.displayName,
+                    lmp = nearest.price?.lmp,
+                    refId = refId,
+                    updatedAtMillis = System.currentTimeMillis(),
+                ),
+            )
+            LmpWidget().updateAll(getApplication())
         }
     }
 
