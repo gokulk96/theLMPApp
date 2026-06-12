@@ -16,27 +16,20 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -60,28 +53,20 @@ fun LmpScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("LMP Near Me — ${state.activeMarket.displayName}") },
+                title = { Text("NYC LMP — NYISO") },
                 actions = {
                     if (state.isLoadingLmp || state.isLoadingFuelMix) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp), strokeWidth = 2.dp
-                        )
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
                     }
                     IconButton(onClick = viewModel::refresh) {
                         Icon(Icons.Default.Refresh, contentDescription = "Refresh")
                     }
-                    MarketMenu(
-                        selected = state.marketMode,
-                        onSelect = viewModel::setMarketMode,
-                    )
                 },
             )
         },
     ) { padding ->
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
+            modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
@@ -92,55 +77,18 @@ fun LmpScreen(
                 state.nearest?.let { nearest ->
                     item { NearestNodeCard(nearest, state.lmpRefId) }
                 }
-                val others = state.nearbyNodes
-                    .filter { it != state.nearest }
-                    .take(6)
+                val others = state.nearbyNodes.filter { it != state.nearest }.take(6)
                 if (others.isNotEmpty()) {
                     item {
-                        Text(
-                            "Other nearby pricing points",
-                            style = MaterialTheme.typography.titleMedium,
-                        )
+                        Text("Other nearby zones", style = MaterialTheme.typography.titleMedium)
                     }
                     items(others) { NearbyNodeRow(it) }
                 }
             }
 
-            item {
-                Text(
-                    "${state.activeMarket.displayName} generation mix",
-                    style = MaterialTheme.typography.titleMedium,
-                )
-            }
+            item { Text("NYISO generation mix", style = MaterialTheme.typography.titleMedium) }
             state.fuelMixError?.let { item { ErrorCard(it, viewModel::refresh) } }
-            state.fuelMix?.let { mix ->
-                item { FuelMixCard(mix) }
-            }
-        }
-    }
-}
-
-@Composable
-private fun MarketMenu(
-    selected: MarketMode,
-    onSelect: (MarketMode) -> Unit,
-) {
-    var expanded by remember { mutableStateOf(false) }
-    IconButton(onClick = { expanded = true }) {
-        Icon(Icons.Default.MoreVert, contentDescription = "Choose market")
-    }
-    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-        MarketMode.entries.forEach { mode ->
-            DropdownMenuItem(
-                text = { Text(mode.displayName) },
-                leadingIcon = {
-                    RadioButton(selected = mode == selected, onClick = null)
-                },
-                onClick = {
-                    expanded = false
-                    onSelect(mode)
-                },
-            )
+            state.fuelMix?.let { mix -> item { FuelMixCard(mix) } }
         }
     }
 }
@@ -160,9 +108,8 @@ private fun PermissionCard(onRequestPermission: () -> Unit) {
             )
             Spacer(Modifier.height(12.dp))
             Text(
-                "This app finds the wholesale electricity pricing point nearest " +
-                    "to you (MISO or NYISO) and shows its current locational " +
-                    "marginal price.",
+                "This app finds the nearest NYISO load zone and shows " +
+                    "its current locational marginal price (LBMP).",
                 textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.bodyMedium,
             )
@@ -178,11 +125,7 @@ private fun NearestNodeCard(nearest: NearbyNode, refId: String) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Default.LocationOn,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                )
+                Icon(Icons.Default.LocationOn, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.size(8.dp))
                 Column {
                     Text(
@@ -247,9 +190,7 @@ private fun ComponentStat(label: String, value: Double?) {
 private fun NearbyNodeRow(item: NearbyNode) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
@@ -265,8 +206,7 @@ private fun NearbyNodeRow(item: NearbyNode) {
                 item.price?.let { "$%.2f".format(Locale.US, it.lmp) } ?: "n/a",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = item.price?.let { lmpColor(it.lmp) }
-                    ?: MaterialTheme.colorScheme.onSurfaceVariant,
+                color = item.price?.let { lmpColor(it.lmp) } ?: MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -276,16 +216,9 @@ private fun NearbyNodeRow(item: NearbyNode) {
 private fun FuelMixCard(mix: FuelMix) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                "Total generation: %,.0f MW".format(Locale.US, mix.totalMw),
-                style = MaterialTheme.typography.titleSmall,
-            )
+            Text("Total generation: %,.0f MW".format(Locale.US, mix.totalMw), style = MaterialTheme.typography.titleSmall)
             if (mix.refId.isNotBlank()) {
-                Text(
-                    mix.refId,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Text(mix.refId, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Spacer(Modifier.height(12.dp))
             HorizontalDivider()
@@ -318,10 +251,7 @@ private fun ShareBar(share: Double, color: Color) {
         modifier = Modifier
             .fillMaxWidth()
             .height(8.dp)
-            .background(
-                MaterialTheme.colorScheme.surfaceVariant,
-                shape = RoundedCornerShape(4.dp),
-            ),
+            .background(MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(4.dp)),
     ) {
         Box(
             modifier = Modifier
@@ -336,11 +266,7 @@ private fun ShareBar(share: Double, color: Color) {
 private fun ErrorCard(message: String, onRetry: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.error,
-            )
+            Text(message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
             Spacer(Modifier.height(8.dp))
             Button(onClick = onRetry) { Text("Retry") }
         }

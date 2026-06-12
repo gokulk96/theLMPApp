@@ -1,6 +1,5 @@
 package com.gokul.lmpapp.data
 
-/** Live data plus node directory for one market. */
 class LmpRepository(
     private val api: MarketDataSource,
     val directory: NodeDirectory,
