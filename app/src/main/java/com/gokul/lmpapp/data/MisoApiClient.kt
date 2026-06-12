@@ -75,24 +75,57 @@ class MisoApiClient(
 
         fun parseFuelMix(body: String): FuelMix {
             val root = JSONObject(body)
-            val refId = root.optString("RefId", "")
-            val fuel = root.optJSONObject("Fuel") ?: root
-            val types = asArray(fuel.opt("Type"))
-                ?: throw IOException("Unexpected fuel mix payload: missing Fuel.Type")
+
+            // MISO has shipped this endpoint with at least three different shapes.
+            // Try every known path before giving up.
+            val topCandidates = listOf(
+                root,
+                root.optJSONObject("FuelMix"),
+                root.optJSONObject("fuelmix"),
+                root.optJSONObject("RTFuelMix"),
+            ).filterNotNull()
+
+            var types: JSONArray? = null
+            var refIdFound = ""
+            outer@ for (candidate in topCandidates) {
+                refIdFound = firstString(candidate, "RefId", "refId") ?: ""
+                // Try Fuel.Type wrapper
+                val fuelObj = candidate.optJSONObject("Fuel")
+                if (fuelObj != null) {
+                    types = asArray(fuelObj.opt("Type")); if (types != null) break@outer
+                    types = asArray(fuelObj.opt("FuelType")); if (types != null) break@outer
+                }
+                // Try direct array keys
+                for (key in listOf("Type", "FuelType", "type", "fuel_type", "FuelCategory")) {
+                    types = asArray(candidate.opt(key)); if (types != null) break@outer
+                }
+            }
+            if (types == null) {
+                val preview = body.take(300).replace('\n', ' ')
+                throw IOException("Unexpected MISO fuel mix structure — first 300 chars: $preview")
+            }
 
             val categories = ArrayList<FuelCategory>(types.length())
             for (i in 0 until types.length()) {
                 val obj = types.optJSONObject(i) ?: continue
-                val name = firstString(obj, "CATEGORY", "Category", "category") ?: continue
-                val mw = firstDouble(obj, "ACT", "act", "MW", "mw") ?: continue
+                val name = firstString(
+                    obj,
+                    "CATEGORY", "Category", "category",
+                    "fuel_category_name", "FuelCategoryName", "NAME", "name",
+                ) ?: continue
+                val mw = firstDouble(
+                    obj,
+                    "ACT", "act", "ActualValue", "actualvalue",
+                    "MW", "mw", "GenMW", "gen_mw", "VALUE", "value",
+                ) ?: continue
                 categories.add(FuelCategory(name = name, mw = mw))
             }
             if (categories.isEmpty()) throw IOException("Fuel mix contained no parsable rows")
 
-            val reportedTotal = firstDouble(root, "TotalMW", "totalmw")
+            val reportedTotal = firstDouble(root, "TotalMW", "totalmw", "total_mw")
             val total = reportedTotal ?: categories.sumOf { it.mw }
             return FuelMix(
-                refId = refId,
+                refId = refIdFound,
                 totalMw = total,
                 categories = categories.sortedByDescending { it.mw },
             )

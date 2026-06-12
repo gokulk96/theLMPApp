@@ -89,4 +89,38 @@ class MisoApiClientTest {
 
         assertEquals(2000.0, mix.totalMw, 1e-9)
     }
+
+    @Test
+    fun `fuel mix parses FuelMix wrapper shape`() {
+        // MISO has returned this shape in some periods
+        val body = """
+            {"FuelMix":{"RefId":"12-Jun-2026 15:00 EST","TotalMW":"65000",
+             "Fuel":{"Type":[
+               {"CATEGORY":"Natural Gas","ACT":"28000"},
+               {"CATEGORY":"Coal","ACT":"22000"},
+               {"CATEGORY":"Nuclear","ACT":"15000"}
+             ]}}}
+        """.trimIndent()
+
+        val mix = MisoApiClient.parseFuelMix(body)
+
+        assertEquals("12-Jun-2026 15:00 EST", mix.refId)
+        assertEquals(65000.0, mix.totalMw, 1e-9)
+        assertEquals("Natural Gas", mix.categories.first().name)
+    }
+
+    @Test
+    fun `fuel mix parses ActualValue key variant`() {
+        val body = """
+            {"Fuel":{"Type":[
+              {"fuel_category_name":"Wind","ActualValue":"14000"},
+              {"fuel_category_name":"Solar","ActualValue":"3500"}
+            ]}}
+        """.trimIndent()
+
+        val mix = MisoApiClient.parseFuelMix(body)
+
+        assertEquals(2, mix.categories.size)
+        assertEquals(17500.0, mix.totalMw, 1e-9)
+    }
 }
