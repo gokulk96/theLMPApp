@@ -364,7 +364,7 @@ private fun LoadTile(loads: LoadSnapshot?, modifier: Modifier = Modifier) {
 @Composable
 private fun RangeTile(lo: Double?, hi: Double?, current: Double?, modifier: Modifier = Modifier) {
     Column(modifier = modifier.glass().padding(14.dp)) {
-        TileLabel("TODAY'S RANGE")
+        TileLabel("TODAY'S RANGE · REAL-TIME")
         Text(
             if (lo != null && hi != null) "$${lo.roundToInt()} – $${hi.roundToInt()}" else "—",
             fontSize = 26.sp,
