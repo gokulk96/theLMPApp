@@ -11,6 +11,9 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import com.gokul.lmpapp.BuildConfig
+import com.gokul.lmpapp.data.ErcotApiClient
+import com.gokul.lmpapp.data.MarketDataSource
 import com.gokul.lmpapp.data.NodeDirectory
 import com.gokul.lmpapp.data.NyisoApiClient
 import com.gokul.lmpapp.data.ZoneSeries
@@ -34,8 +37,13 @@ class WidgetRefreshWorker(
         val context = applicationContext
         val saved = WidgetStateStore.load(context)
         return try {
-            val api = NyisoApiClient()
-            val directory = NodeDirectory.loadFromAssets(context, "nyiso_nodes.csv")
+            val api: MarketDataSource = if (saved.market == "ERCOT") {
+                ErcotApiClient(BuildConfig.ERCOT_API_KEY)
+            } else {
+                NyisoApiClient()
+            }
+            val dirAsset = if (saved.market == "ERCOT") "ercot_zones.csv" else "nyiso_nodes.csv"
+            val directory = NodeDirectory.loadFromAssets(context, dirAsset)
             val node = directory.findByNodeId(saved.zoneId)
             val keys = node?.matchKeys ?: setOf(saved.zoneId.uppercase())
 

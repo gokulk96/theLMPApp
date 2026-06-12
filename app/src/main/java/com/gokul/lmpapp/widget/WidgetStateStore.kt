@@ -9,6 +9,7 @@ data class WidgetMixEntry(val name: String, val pct: Double)
 
 /** Snapshot of everything the widgets display. */
 data class WidgetState(
+    val market: String = "NYISO",              // "NYISO" or "ERCOT"
     val zoneId: String = "N.Y.C.",
     val zoneName: String = "New York City (Zone J)",
     val lmp: Double? = null,
@@ -33,6 +34,7 @@ object WidgetStateStore {
 
     fun save(context: Context, state: WidgetState) {
         val json = JSONObject().apply {
+            put("market", state.market)
             put("zoneId", state.zoneId)
             put("zoneName", state.zoneName)
             state.lmp?.let { put("lmp", it) }
@@ -57,6 +59,7 @@ object WidgetStateStore {
         return runCatching {
             val json = JSONObject(raw)
             WidgetState(
+                market = json.optString("market", "NYISO"),
                 zoneId = json.optString("zoneId", "N.Y.C."),
                 zoneName = json.optString("zoneName", "New York City (Zone J)"),
                 lmp = json.optDouble("lmp").takeIf { !it.isNaN() },

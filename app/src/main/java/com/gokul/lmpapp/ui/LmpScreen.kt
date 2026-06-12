@@ -53,8 +53,9 @@ import java.time.ZoneId
 import java.util.Locale
 import kotlin.math.roundToInt
 
-/** NYISO statewide summer capability, MW — scale for the load bar. */
+/** Grid summer capability in MW — used to scale the load bar. */
 private const val NY_SUMMER_CAPACITY_MW = 32_000.0
+private const val ERCOT_SUMMER_CAPACITY_MW = 85_000.0
 
 /** Beyond this distance (km) the user is likely outside New York State. */
 private const val OUT_OF_COVERAGE_KM = 300.0
@@ -142,7 +143,7 @@ fun LmpScreen(
                             OutOfCoverageCard(nearest.distanceKm)
                         }
                     }
-                    item { GiantPrice(nearest, state.trend, sky.verdict, sky.condition) }
+                    item { GiantPrice(nearest, state.trend, sky.verdict, sky.condition, state.market) }
                     if (state.nextHours.isNotEmpty()) {
                         item {
                             Spacer(Modifier.height(18.dp))
@@ -155,7 +156,7 @@ fun LmpScreen(
                             modifier = Modifier.height(IntrinsicSize.Max),
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
-                            LoadTile(state.loadSnapshot, Modifier.weight(1f).fillMaxHeight())
+                            LoadTile(state.loadSnapshot, state.market, Modifier.weight(1f).fillMaxHeight())
                             RangeTile(state.todayLo, state.todayHi, nearest.price?.lmp, Modifier.weight(1f).fillMaxHeight())
                         }
                     }
@@ -176,7 +177,7 @@ fun LmpScreen(
                     item {
                         Spacer(Modifier.height(14.dp))
                         Text(
-                            "NYISO · $refId",
+                            "${state.market} · $refId",
                             fontSize = 11.sp,
                             color = Color.White.copy(alpha = 0.7f),
                             fontFamily = FontFamily.Monospace,
@@ -217,8 +218,9 @@ private fun zoneSubtitle(nearest: NearbyNode): String {
 }
 
 @Composable
-private fun GiantPrice(nearest: NearbyNode, trend: Double?, verdict: String, condition: String) {
+private fun GiantPrice(nearest: NearbyNode, trend: Double?, verdict: String, condition: String, market: String = "NYISO") {
     val lmp = nearest.price?.lmp ?: return
+    val priceLabel = if (market == "ERCOT") "SPP" else "LMP"
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Row(modifier = Modifier.padding(top = 10.dp)) {
             Text(
@@ -238,7 +240,7 @@ private fun GiantPrice(nearest: NearbyNode, trend: Double?, verdict: String, con
             )
         }
         Text(
-            "/MWh · real-time LMP",
+            "/MWh · real-time $priceLabel",
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
             color = Color.White.copy(alpha = 0.92f),
@@ -335,7 +337,8 @@ private fun hourLabel(hour: Int) = when (val h = ((hour % 24) + 24) % 24) {
 // ── load + range tiles ───────────────────────────────────────────────────
 
 @Composable
-private fun LoadTile(loads: LoadSnapshot?, modifier: Modifier = Modifier) {
+private fun LoadTile(loads: LoadSnapshot?, market: String = "NYISO", modifier: Modifier = Modifier) {
+    val capacityMw = if (market == "ERCOT") ERCOT_SUMMER_CAPACITY_MW else NY_SUMMER_CAPACITY_MW
     Column(modifier = modifier.glass().padding(14.dp)) {
         TileLabel("LOAD")
         val total = loads?.totalMw
@@ -346,7 +349,7 @@ private fun LoadTile(loads: LoadSnapshot?, modifier: Modifier = Modifier) {
             color = Color.White,
             modifier = Modifier.padding(top = 8.dp),
         )
-        val frac = total?.let { (it / NY_SUMMER_CAPACITY_MW).coerceIn(0.0, 1.0) } ?: 0.0
+        val frac = total?.let { (it / capacityMw).coerceIn(0.0, 1.0) } ?: 0.0
         Box(
             modifier = Modifier
                 .fillMaxWidth()

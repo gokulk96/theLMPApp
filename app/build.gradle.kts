@@ -14,6 +14,12 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
+
+        // Inject the ERCOT subscription key from local.properties at build time
+        val localProps = java.util.Properties()
+        val localPropsFile = rootProject.file("local.properties")
+        if (localPropsFile.exists()) localProps.load(java.io.FileInputStream(localPropsFile))
+        buildConfigField("String", "ERCOT_API_KEY", "\"${localProps.getProperty("ercot.api.key", "")}\"")
     }
 
     buildTypes {
@@ -35,6 +41,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

@@ -3,6 +3,8 @@ package com.gokul.lmpapp.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.gokul.lmpapp.BuildConfig
+import com.gokul.lmpapp.data.ErcotApiClient
 import com.gokul.lmpapp.data.FuelMix
 import com.gokul.lmpapp.data.HourPrice
 import com.gokul.lmpapp.data.LmpRepository
@@ -29,6 +31,7 @@ import kotlin.time.Duration.Companion.minutes
 
 data class LmpUiState(
     val permissionGranted: Boolean = false,
+    val market: String = "NYISO",
     val location: UserLocation? = null,
     val lmpRefId: String = "",
     val nearbyNodes: List<NearbyNode> = emptyList(),
@@ -48,11 +51,20 @@ data class LmpUiState(
 
 class LmpViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository = LmpRepository(
+    private val nyisoRepo = LmpRepository(
         api = NyisoApiClient(),
         directory = NodeDirectory.loadFromAssets(application, "nyiso_nodes.csv"),
     )
+    private val ercotRepo = LmpRepository(
+        api = ErcotApiClient(BuildConfig.ERCOT_API_KEY),
+        directory = NodeDirectory.loadFromAssets(application, "ercot_zones.csv"),
+    )
     private val locationProvider = LocationProvider(application)
+
+    // Texas bounding box — nearly all of Texas is ERCOT territory
+    private fun isTexas(lat: Double, lon: Double) = lat in 25.5..36.5 && lon in -105.0..-93.5
+    private fun repoFor(lat: Double, lon: Double) = if (isTexas(lat, lon)) ercotRepo else nyisoRepo
+    private fun marketFor(lat: Double, lon: Double) = if (isTexas(lat, lon)) "ERCOT" else "NYISO"
 
     private val _uiState = MutableStateFlow(
         LmpUiState(permissionGranted = locationProvider.hasPermission())
@@ -107,19 +119,23 @@ class LmpViewModel(application: Application) : AndroidViewModel(application) {
         try {
             val location = locationProvider.currentLocation()
                 ?: throw IllegalStateException("Could not determine your location")
-            val (refId, nodes) = repository.nearbyNodes(location.lat, location.lon)
+            val repo = repoFor(location.lat, location.lon)
+            val market = marketFor(location.lat, location.lon)
+            val (refId, nodes) = repo.nearbyNodes(location.lat, location.lon)
             // Everything beyond the price is supplementary — failures shouldn't hide the LMP
-            val loads = runCatching { repository.zoneLoads() }.getOrNull()
+            val loads = runCatching { repo.zoneLoads() }.getOrNull()
             val nearestNode = nodes.firstOrNull { it.price != null }?.node
             val series = nearestNode?.let {
-                runCatching { repository.zoneSeries(it) }.getOrNull()
+                runCatching { repo.zoneSeries(it) }.getOrNull()
             } ?: ZoneSeries(emptyList())
-            val nowHour = LocalDateTime.now(ZoneId.of("America/New_York")).hour
+            val marketTz = if (market == "ERCOT") ZoneId.of("America/Chicago") else ZoneId.of("America/New_York")
+            val nowHour = LocalDateTime.now(marketTz).hour
             val nextHours = nearestNode?.let { node ->
-                runCatching { repository.dayAheadCurve(node) }.getOrNull()
+                runCatching { repo.dayAheadCurve(node) }.getOrNull()
             }?.filter { it.hour >= nowHour }?.take(NEXT_HOURS_SHOWN).orEmpty()
             _uiState.update {
                 it.copy(
+                    market = market,
                     location = location,
                     lmpRefId = refId,
                     nearbyNodes = nodes,
@@ -131,7 +147,7 @@ class LmpViewModel(application: Application) : AndroidViewModel(application) {
                     isLoadingLmp = false,
                 )
             }
-            syncWidget(refId, nodes)
+            syncWidget(refId, nodes, market)
         } catch (e: Exception) {
             _uiState.update {
                 it.copy(isLoadingLmp = false, lmpError = e.message ?: "Failed to load LMP data")
@@ -140,7 +156,7 @@ class LmpViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Keeps the home-screen widget showing the zone the app last resolved. */
-    private suspend fun syncWidget(refId: String, nodes: List<NearbyNode>) {
+    private suspend fun syncWidget(refId: String, nodes: List<NearbyNode>, market: String) {
         val nearest = nodes.firstOrNull { it.price != null } ?: return
         val current = _uiState.value
         runCatching {
@@ -148,6 +164,7 @@ class LmpViewModel(application: Application) : AndroidViewModel(application) {
             WidgetStateStore.save(
                 getApplication(),
                 previous.copy(
+                    market = market,
                     zoneId = nearest.node.nodeId,
                     zoneName = nearest.node.displayName,
                     lmp = nearest.price?.lmp,

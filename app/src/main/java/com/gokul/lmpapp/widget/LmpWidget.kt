@@ -99,7 +99,7 @@ private fun SmallContent(state: WidgetState) {
     Column(modifier = GlanceModifier.fillMaxSize().padding(16.dp)) {
         Row(modifier = GlanceModifier.fillMaxWidth()) {
             Text(
-                "NYISO LMP",
+                "${state.market} LMP",
                 style = TextStyle(color = WHITE_DIM, fontSize = 11.sp, fontWeight = FontWeight.Bold),
             )
             Spacer(GlanceModifier.defaultWeight())
@@ -132,7 +132,7 @@ private fun MediumContent(state: WidgetState, big: Boolean = false) {
         // left — price block
         Column(modifier = GlanceModifier.width(if (big) 150.dp else 120.dp).fillMaxSize()) {
             Text(
-                "NYISO · ${shortZone(state.zoneName).uppercase(Locale.US)}",
+                "${state.market} · ${shortZone(state.zoneName).uppercase(Locale.US)}",
                 style = TextStyle(color = WHITE_DIM, fontSize = labelSize, fontWeight = FontWeight.Bold),
                 maxLines = 1,
             )

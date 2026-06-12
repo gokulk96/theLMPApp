@@ -1,0 +1,12 @@
+# ERCOT load zone directory with approximate geographic centers.
+# nodeId matches the settlementPoint value returned by the ERCOT API (api.ercot.com).
+# aliases covers the forecastZone name used in the load endpoint (without LZ_ prefix).
+# nodeId,aliases,displayName,type,lat,lon
+LZ_NORTH,NORTH,Zone North (Dallas-Fort Worth),ZONE,32.78,-96.80
+LZ_HOUSTON,HOUSTON,Zone Houston,ZONE,29.76,-95.37
+LZ_SOUTH,SOUTH,Zone South (Corpus Christi),ZONE,27.80,-97.40
+LZ_WEST,WEST,Zone West (Midland-Odessa),ZONE,31.85,-102.37
+LZ_AEN,AEN,Zone AEN (Austin Energy),ZONE,30.27,-97.74
+LZ_CPS,CPS,Zone CPS (San Antonio),ZONE,29.42,-98.49
+LZ_LCRA,LCRA,Zone LCRA (Central Texas),ZONE,29.95,-97.30
+LZ_RAYBN,RAYBN,Zone RAYBN (East Texas),ZONE,31.10,-94.50
