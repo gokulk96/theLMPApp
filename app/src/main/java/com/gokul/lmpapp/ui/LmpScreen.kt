@@ -5,9 +5,11 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -140,9 +142,12 @@ fun LmpScreen(
                     }
                     item {
                         Spacer(Modifier.height(10.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            LoadTile(state.loadSnapshot, Modifier.weight(1f))
-                            RangeTile(state.todayLo, state.todayHi, nearest.price?.lmp, Modifier.weight(1f))
+                        Row(
+                            modifier = Modifier.height(IntrinsicSize.Max),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            LoadTile(state.loadSnapshot, Modifier.weight(1f).fillMaxHeight())
+                            RangeTile(state.todayLo, state.todayHi, nearest.price?.lmp, Modifier.weight(1f).fillMaxHeight())
                         }
                     }
                 }
@@ -458,22 +463,16 @@ private fun MixCard(mix: FuelMix) {
                 }
             }
         }
-        // legend
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            mix.categories.take(3).forEach { LegendChip(it.name, mix.share(it) * 100) }
-        }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 7.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            mix.categories.drop(3).take(3).forEach { LegendChip(it.name, mix.share(it) * 100) }
+        // legend — 2 items per row
+        mix.categories.chunked(2).forEachIndexed { rowIndex, group ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = if (rowIndex == 0) 12.dp else 7.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                group.forEach { LegendChip(it.name, mix.share(it) * 100) }
+            }
         }
         if (mix.refId.isNotBlank()) {
             Text(
