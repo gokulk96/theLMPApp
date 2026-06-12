@@ -94,6 +94,60 @@ class NyisoApiClientTest {
     }
 
     @Test
+    fun `parseZoneSeriesCsv collects only the matching zone, sorted`() {
+        val csv = """
+            "Time Stamp","Name","PTID","LBMP ($/MWHr)","Marginal Cost Losses ($/MWHr)","Marginal Cost Congestion ($/MWHr)"
+            "06/12/2026 00:05:00","N.Y.C.","61761","20.00","1.00","-1.00"
+            "06/12/2026 00:05:00","LONGIL","61762","25.00","1.00","-1.00"
+            "06/12/2026 01:05:00","N.Y.C.","61761","30.00","1.00","-1.00"
+            "06/12/2026 00:35:00","N.Y.C.","61761","22.00","1.00","-1.00"
+        """.trimIndent()
+
+        val series = NyisoApiClient.parseZoneSeriesCsv(csv, setOf("N.Y.C.", "NYC"))
+
+        assertEquals(3, series.points.size)
+        assertEquals(listOf(20.00, 22.00, 30.00), series.points.map { it.lmp })
+        assertEquals(20.00, series.lo!!, 1e-9)
+        assertEquals(30.00, series.hi!!, 1e-9)
+    }
+
+    @Test
+    fun `ZoneSeries computes hourly averages and hour-ago trend`() {
+        fun pt(h: Int, m: Int, p: Double) = PricePoint(
+            java.time.LocalDateTime.of(2026, 6, 12, h, m), p
+        )
+        val series = ZoneSeries(
+            listOf(
+                pt(13, 0, 40.0), pt(13, 30, 44.0),
+                pt(14, 0, 50.0), pt(14, 5, 56.0),
+            )
+        )
+
+        val hourly = series.hourlyAverages()
+        assertEquals(listOf(13, 14), hourly.map { it.hour })
+        assertEquals(42.0, hourly[0].price, 1e-9)
+        assertEquals(53.0, hourly[1].price, 1e-9)
+
+        // latest 14:05 (56.0) vs closest to 13:05 → 13:00 (40.0)
+        assertEquals(16.0, series.trendVsHourAgo()!!, 1e-9)
+    }
+
+    @Test
+    fun `parseDayAheadCsv returns hourly prices with offset`() {
+        val csv = """
+            "Time Stamp","Name","PTID","LBMP ($/MWHr)","Marginal Cost Losses ($/MWHr)","Marginal Cost Congestion ($/MWHr)"
+            "06/13/2026 00:00","N.Y.C.","61761","28.00","1.00","-1.00"
+            "06/13/2026 01:00","N.Y.C.","61761","24.00","1.00","-1.00"
+            "06/13/2026 00:00","LONGIL","61762","31.00","1.00","-1.00"
+        """.trimIndent()
+
+        val curve = NyisoApiClient.parseDayAheadCsv(csv, setOf("N.Y.C."), hourOffset = 24)
+
+        assertEquals(listOf(24, 25), curve.map { it.hour })
+        assertEquals(28.00, curve[0].price, 1e-9)
+    }
+
+    @Test
     fun `splitCsvLine handles quoted fields containing commas`() {
         assertEquals(
             listOf("a", "b,c", """d"e"""),

@@ -12,4 +12,10 @@ class LmpRepository(
     suspend fun fuelMix(): FuelMix = api.fetchFuelMix()
 
     suspend fun zoneLoads(): LoadSnapshot = api.fetchZoneLoads()
+
+    suspend fun zoneSeries(node: NodeInfo): ZoneSeries =
+        api.fetchZoneSeries(node.matchKeys)
+
+    suspend fun dayAheadCurve(node: NodeInfo): List<HourPrice> =
+        api.fetchDayAheadCurve(node.matchKeys)
 }

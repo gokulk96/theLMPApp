@@ -5,7 +5,10 @@ the load zone nearest to your location** — Zone J for New York City — plus
 the zone's **real-time actual load** and the NYISO **generation (fuel)
 mix**.
 
-Like a weather app, but for electricity prices.
+Like a weather app, but for electricity prices: the whole sky shifts color
+with the price (green dawn < $22, blue day < $55, golden hour < $95, red
+sunset above), following the "Atmosphere" direction from the Claude Design
+handoff.
 
 ## What it does
 
@@ -43,7 +46,8 @@ package and the NYISO OASIS site expose:
 | Data | URL |
 |---|---|
 | Zonal LBMP (live snapshot) | `https://mis.nyiso.com/public/realtime/realtime_zone_lbmp.csv` |
-| Zonal LBMP (daily, fallback) | `https://mis.nyiso.com/public/csv/realtime/{YYYYMMDD}realtime_zone.csv` |
+| Zonal LBMP (daily history; trend + today's range) | `https://mis.nyiso.com/public/csv/realtime/{YYYYMMDD}realtime_zone.csv` |
+| Day-ahead hourly LBMP ("next hours" bars) | `https://mis.nyiso.com/public/csv/damlbmp/{YYYYMMDD}damlbmp_zone.csv` |
 | Real-time actual load | `https://mis.nyiso.com/public/csv/pal/{YYYYMMDD}pal.csv` |
 | Fuel mix | `https://mis.nyiso.com/public/csv/rtfuelmix/{YYYYMMDD}rtfuelmix.csv` |
 

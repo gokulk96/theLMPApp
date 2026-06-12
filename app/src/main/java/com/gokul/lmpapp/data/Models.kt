@@ -1,5 +1,8 @@
 package com.gokul.lmpapp.data
 
+import java.time.LocalDateTime
+import kotlin.math.abs
+
 /** A pricing node from the bundled directory, with approximate coordinates. */
 data class NodeInfo(
     val nodeId: String,
@@ -47,6 +50,37 @@ data class FuelCategory(
     val name: String,
     val mw: Double,
 )
+
+/** One observed price for a zone at a 5-minute interval. */
+data class PricePoint(val ts: LocalDateTime, val lmp: Double)
+
+/** A price at a specific hour slot (0 = midnight today, 24 = midnight tomorrow). */
+data class HourPrice(val hour: Int, val price: Double)
+
+/** Today's accumulated 5-minute price series for one zone. */
+data class ZoneSeries(val points: List<PricePoint>) {
+
+    val isEmpty: Boolean get() = points.isEmpty()
+    val lo: Double? get() = points.minOfOrNull { it.lmp }
+    val hi: Double? get() = points.maxOfOrNull { it.lmp }
+
+    /** Latest price minus the price observed closest to one hour earlier. */
+    fun trendVsHourAgo(): Double? {
+        val latest = points.maxByOrNull { it.ts } ?: return null
+        val target = latest.ts.minusHours(1)
+        val anchor = points
+            .filter { it.ts <= target.plusMinutes(15) && it.ts != latest.ts }
+            .minByOrNull { abs(java.time.Duration.between(it.ts, target).toMinutes()) }
+            ?: return null
+        return latest.lmp - anchor.lmp
+    }
+
+    /** Average price per hour-of-day, for the hours observed so far. */
+    fun hourlyAverages(): List<HourPrice> =
+        points.groupBy { it.ts.hour }
+            .map { (hour, pts) -> HourPrice(hour, pts.sumOf { it.lmp } / pts.size) }
+            .sortedBy { it.hour }
+}
 
 /** Real-time actual load for one zone, in MW. */
 data class ZoneLoad(

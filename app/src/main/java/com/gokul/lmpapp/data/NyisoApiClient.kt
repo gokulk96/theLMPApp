@@ -50,6 +50,40 @@ class NyisoApiClient(
         parseLoadCsv(getFirstSuccessful(dailyUrls("pal", "pal.csv")))
     }
 
+    /** Today's full 5-minute price series for one zone (today's daily file only). */
+    override suspend fun fetchZoneSeries(matchKeys: Set<String>): ZoneSeries =
+        withContext(Dispatchers.IO) {
+            parseZoneSeriesCsv(
+                getFirstSuccessful(dailyUrls("realtime", "realtime_zone.csv")),
+                matchKeys,
+            )
+        }
+
+    /**
+     * Day-ahead hourly prices for one zone: today's 24 hours, plus tomorrow's
+     * (offset +24) when NYISO has posted them (~10:30 ET). Sorted by hour slot.
+     */
+    override suspend fun fetchDayAheadCurve(matchKeys: Set<String>): List<HourPrice> =
+        withContext(Dispatchers.IO) {
+            val today = LocalDate.now(marketZone)
+            val result = ArrayList<HourPrice>(48)
+            for ((offset, date) in listOf(0 to today, 24 to today.plusDays(1))) {
+                val stamp = date.format(DateTimeFormatter.BASIC_ISO_DATE)
+                val csv = runCatching {
+                    getFirstSuccessful(
+                        listOf(
+                            "https://mis.nyiso.com/public/csv/damlbmp/${stamp}damlbmp_zone.csv",
+                            "http://mis.nyiso.com/public/csv/damlbmp/${stamp}damlbmp_zone.csv",
+                        )
+                    )
+                }.getOrNull() ?: continue
+                runCatching {
+                    result += parseDayAheadCsv(csv, matchKeys, hourOffset = offset)
+                }
+            }
+            result.sortedBy { it.hour }
+        }
+
     /** Live snapshot files that always reflect the current interval. */
     private fun latestUrls(path: String): List<String> =
         listOf("https://mis.nyiso.com/public/$path", "http://mis.nyiso.com/public/$path")
@@ -160,6 +194,43 @@ class NyisoApiClient(
                 totalMw = categories.sumOf { it.mw },
                 categories = categories.sortedByDescending { it.mw },
             )
+        }
+
+        /** All 5-minute rows for the zone matching [matchKeys] (uppercased names). */
+        fun parseZoneSeriesCsv(csv: String, matchKeys: Set<String>): ZoneSeries {
+            val rows = parseRows(csv)
+            val header = rows.firstOrNull() ?: throw IOException("NYISO LBMP CSV is empty")
+            val tsCol = columnIndex(header, "Time Stamp")
+            val nameCol = columnIndex(header, "Name")
+            val lbmpCol = columnIndex(header, "LBMP")
+
+            val points = rows.drop(1).mapNotNull { fields ->
+                val name = fields.getOrNull(nameCol)?.trim()?.uppercase() ?: return@mapNotNull null
+                if (name !in matchKeys) return@mapNotNull null
+                val ts = parseTimestamp(fields.getOrNull(tsCol)) ?: return@mapNotNull null
+                val lbmp = fields.getOrNull(lbmpCol)?.trim()?.toDoubleOrNull()
+                    ?: return@mapNotNull null
+                PricePoint(ts, lbmp)
+            }.sortedBy { it.ts }
+            return ZoneSeries(points)
+        }
+
+        /** Hourly day-ahead prices for the matching zone; hour slot = hour + [hourOffset]. */
+        fun parseDayAheadCsv(csv: String, matchKeys: Set<String>, hourOffset: Int = 0): List<HourPrice> {
+            val rows = parseRows(csv)
+            val header = rows.firstOrNull() ?: throw IOException("NYISO DAM CSV is empty")
+            val tsCol = columnIndex(header, "Time Stamp")
+            val nameCol = columnIndex(header, "Name")
+            val lbmpCol = columnIndex(header, "LBMP")
+
+            return rows.drop(1).mapNotNull { fields ->
+                val name = fields.getOrNull(nameCol)?.trim()?.uppercase() ?: return@mapNotNull null
+                if (name !in matchKeys) return@mapNotNull null
+                val ts = parseTimestamp(fields.getOrNull(tsCol)) ?: return@mapNotNull null
+                val lbmp = fields.getOrNull(lbmpCol)?.trim()?.toDoubleOrNull()
+                    ?: return@mapNotNull null
+                HourPrice(ts.hour + hourOffset, lbmp)
+            }.sortedBy { it.hour }
         }
 
         fun parseLoadCsv(csv: String): LoadSnapshot {

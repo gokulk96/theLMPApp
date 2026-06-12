@@ -4,9 +4,13 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gokul.lmpapp.data.FuelMix
+import com.gokul.lmpapp.data.HourPrice
 import com.gokul.lmpapp.data.LmpRepository
 import com.gokul.lmpapp.data.LoadSnapshot
 import com.gokul.lmpapp.data.NearbyNode
+import com.gokul.lmpapp.data.ZoneSeries
+import java.time.LocalDateTime
+import java.time.ZoneId
 import com.gokul.lmpapp.data.NodeDirectory
 import com.gokul.lmpapp.data.NyisoApiClient
 import com.gokul.lmpapp.location.LocationProvider
@@ -30,6 +34,10 @@ data class LmpUiState(
     val nearbyNodes: List<NearbyNode> = emptyList(),
     val loadSnapshot: LoadSnapshot? = null,
     val fuelMix: FuelMix? = null,
+    val trend: Double? = null,
+    val todayLo: Double? = null,
+    val todayHi: Double? = null,
+    val nextHours: List<HourPrice> = emptyList(),
     val isLoadingLmp: Boolean = false,
     val isLoadingFuelMix: Boolean = false,
     val lmpError: String? = null,
@@ -100,14 +108,26 @@ class LmpViewModel(application: Application) : AndroidViewModel(application) {
             val location = locationProvider.currentLocation()
                 ?: throw IllegalStateException("Could not determine your location")
             val (refId, nodes) = repository.nearbyNodes(location.lat, location.lon)
-            // Load data is supplementary — a failure shouldn't hide the LMP
+            // Everything beyond the price is supplementary — failures shouldn't hide the LMP
             val loads = runCatching { repository.zoneLoads() }.getOrNull()
+            val nearestNode = nodes.firstOrNull { it.price != null }?.node
+            val series = nearestNode?.let {
+                runCatching { repository.zoneSeries(it) }.getOrNull()
+            } ?: ZoneSeries(emptyList())
+            val nowHour = LocalDateTime.now(ZoneId.of("America/New_York")).hour
+            val nextHours = nearestNode?.let { node ->
+                runCatching { repository.dayAheadCurve(node) }.getOrNull()
+            }?.filter { it.hour >= nowHour }?.take(NEXT_HOURS_SHOWN).orEmpty()
             _uiState.update {
                 it.copy(
                     location = location,
                     lmpRefId = refId,
                     nearbyNodes = nodes,
                     loadSnapshot = loads ?: it.loadSnapshot,
+                    trend = series.trendVsHourAgo(),
+                    todayLo = series.lo,
+                    todayHi = series.hi,
+                    nextHours = nextHours.ifEmpty { it.nextHours },
                     isLoadingLmp = false,
                 )
             }
@@ -122,14 +142,18 @@ class LmpViewModel(application: Application) : AndroidViewModel(application) {
     /** Keeps the home-screen widget showing the zone the app last resolved. */
     private suspend fun syncWidget(refId: String, nodes: List<NearbyNode>) {
         val nearest = nodes.firstOrNull { it.price != null } ?: return
+        val current = _uiState.value
         runCatching {
+            val previous = WidgetStateStore.load(getApplication())
             WidgetStateStore.save(
                 getApplication(),
-                WidgetState(
+                previous.copy(
                     zoneId = nearest.node.nodeId,
                     zoneName = nearest.node.displayName,
                     lmp = nearest.price?.lmp,
+                    trend = current.trend ?: previous.trend,
                     refId = refId,
+                    loadMw = current.loadSnapshot?.totalMw ?: previous.loadMw,
                     updatedAtMillis = System.currentTimeMillis(),
                 ),
             )
@@ -155,5 +179,6 @@ class LmpViewModel(application: Application) : AndroidViewModel(application) {
     companion object {
         private val LMP_REFRESH_INTERVAL = 5.minutes
         private val FUEL_MIX_REFRESH_INTERVAL = 60.minutes
+        private const val NEXT_HOURS_SHOWN = 9
     }
 }

@@ -1,50 +1,80 @@
 package com.gokul.lmpapp.widget
 
 import android.content.Context
+import org.json.JSONArray
+import org.json.JSONObject
 
-/** Snapshot of what the widget displays. */
+/** One fuel category share for the widget's mix strip. */
+data class WidgetMixEntry(val name: String, val pct: Double)
+
+/** Snapshot of everything the widgets display. */
 data class WidgetState(
-    val zoneId: String,
-    val zoneName: String,
-    val lmp: Double?,
-    val refId: String,
-    val updatedAtMillis: Long,
+    val zoneId: String = "N.Y.C.",
+    val zoneName: String = "New York City (Zone J)",
+    val lmp: Double? = null,
+    val trend: Double? = null,
+    val refId: String = "",
+    val curve: List<Double> = emptyList(),     // today's hourly averages
+    val loadMw: Double? = null,
+    val cleanPct: Double? = null,
+    val mix: List<WidgetMixEntry> = emptyList(),
+    val updatedAtMillis: Long = 0L,
 )
 
 /**
- * Tiny SharedPreferences store shared between the app and the widget worker.
- *
- * The widget never requests location itself: the app saves the zone it last
- * resolved here, and the background worker only re-fetches the price for
- * that zone. Defaults to N.Y.C. (Zone J) before the app has run.
+ * SharedPreferences bridge between the app and the widget worker, serialized
+ * as one JSON blob. The widget never requests location itself: the app saves
+ * the zone it last resolved, and the worker re-fetches data for that zone.
  */
 object WidgetStateStore {
 
     private const val PREFS = "widget_state"
-    private const val KEY_ZONE_ID = "zone_id"
-    private const val KEY_ZONE_NAME = "zone_name"
-    private const val KEY_LMP = "lmp"
-    private const val KEY_REF_ID = "ref_id"
-    private const val KEY_UPDATED_AT = "updated_at"
+    private const val KEY = "state_json"
 
     fun save(context: Context, state: WidgetState) {
+        val json = JSONObject().apply {
+            put("zoneId", state.zoneId)
+            put("zoneName", state.zoneName)
+            state.lmp?.let { put("lmp", it) }
+            state.trend?.let { put("trend", it) }
+            put("refId", state.refId)
+            put("curve", JSONArray(state.curve))
+            state.loadMw?.let { put("loadMw", it) }
+            state.cleanPct?.let { put("cleanPct", it) }
+            put("mix", JSONArray(state.mix.map {
+                JSONObject().put("name", it.name).put("pct", it.pct)
+            }))
+            put("updatedAt", state.updatedAtMillis)
+        }
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-            .putString(KEY_ZONE_ID, state.zoneId)
-            .putString(KEY_ZONE_NAME, state.zoneName)
-            .putString(KEY_LMP, state.lmp?.toString() ?: "")
-            .putString(KEY_REF_ID, state.refId)
-            .putLong(KEY_UPDATED_AT, state.updatedAtMillis)
+            .putString(KEY, json.toString())
             .apply()
     }
 
     fun load(context: Context): WidgetState {
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        return WidgetState(
-            zoneId = prefs.getString(KEY_ZONE_ID, null) ?: "N.Y.C.",
-            zoneName = prefs.getString(KEY_ZONE_NAME, null) ?: "New York City (Zone J)",
-            lmp = prefs.getString(KEY_LMP, "")?.toDoubleOrNull(),
-            refId = prefs.getString(KEY_REF_ID, "") ?: "",
-            updatedAtMillis = prefs.getLong(KEY_UPDATED_AT, 0L),
-        )
+        val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY, null) ?: return WidgetState()
+        return runCatching {
+            val json = JSONObject(raw)
+            WidgetState(
+                zoneId = json.optString("zoneId", "N.Y.C."),
+                zoneName = json.optString("zoneName", "New York City (Zone J)"),
+                lmp = json.optDouble("lmp").takeIf { !it.isNaN() },
+                trend = json.optDouble("trend").takeIf { !it.isNaN() },
+                refId = json.optString("refId", ""),
+                curve = json.optJSONArray("curve")?.let { arr ->
+                    (0 until arr.length()).map { arr.getDouble(it) }
+                }.orEmpty(),
+                loadMw = json.optDouble("loadMw").takeIf { !it.isNaN() },
+                cleanPct = json.optDouble("cleanPct").takeIf { !it.isNaN() },
+                mix = json.optJSONArray("mix")?.let { arr ->
+                    (0 until arr.length()).map {
+                        val o = arr.getJSONObject(it)
+                        WidgetMixEntry(o.getString("name"), o.getDouble("pct"))
+                    }
+                }.orEmpty(),
+                updatedAtMillis = json.optLong("updatedAt", 0L),
+            )
+        }.getOrDefault(WidgetState())
     }
 }
