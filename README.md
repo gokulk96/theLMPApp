@@ -1,88 +1,57 @@
-# LMP Near Me (Android)
+# NYC LMP (Android)
 
-An Android app that shows the **locational marginal price (LMP) at the
-pricing point nearest to your location** — MISO or NYISO, picked
-automatically — plus that market's **generation (fuel) mix**, refreshed
-hourly.
+An Android app that shows the **NYISO locational marginal price (LBMP) at
+the load zone nearest to your location** — Zone J for New York City — plus
+the zone's **real-time actual load** and the NYISO **generation (fuel)
+mix**.
 
 Like a weather app, but for electricity prices.
 
 ## What it does
 
-- Gets your location (FusedLocationProvider, coarse or fine).
-- Picks the market whose pricing point is nearest (manual override in the
-  top-bar menu: Auto / MISO / NYISO).
-- Finds the nearest pricing point from the bundled directory for that
-  market and shows its current LMP with energy / congestion / loss
-  components, plus the next 6 nearest pricing points.
-- Fetches the market's system fuel mix and renders it as share bars
-  (MW and % per category).
-- Refresh cadence while the app is open: **LMP every 5 minutes, fuel mix
-  every 60 minutes**, plus a manual refresh button.
+- Gets your location (FusedLocationProvider, with a LocationManager
+  fallback for emulators).
+- Finds the nearest NYISO load zone from a bundled directory of all 11
+  zones A–K ([`nyiso_nodes.csv`](app/src/main/assets/nyiso_nodes.csv)) and
+  shows its current LBMP with energy / congestion / loss components, plus
+  the next 6 nearest zones.
+- Shows the zone's real-time actual load and the NYISO system total.
+- Shows the NYISO fuel mix as share bars (MW and % per category).
+- Refresh cadence while the app is open: **LBMP + load every 5 minutes,
+  fuel mix every 60 minutes**, plus a manual refresh button.
 
-## Markets and data sources
+## Data sources
 
-Both feeds are free and public; no API keys.
+All feeds are free public CSVs on `mis.nyiso.com` (no API key) — the same
+data the [NYISOToolkit](https://github.com/m4rz910/NYISOToolkit) Python
+package and the NYISO OASIS site expose:
 
-### MISO
+| Data | URL |
+|---|---|
+| Zonal LBMP (live snapshot) | `https://mis.nyiso.com/public/realtime/realtime_zone_lbmp.csv` |
+| Zonal LBMP (daily, fallback) | `https://mis.nyiso.com/public/csv/realtime/{YYYYMMDD}realtime_zone.csv` |
+| Real-time actual load | `https://mis.nyiso.com/public/csv/pal/{YYYYMMDD}pal.csv` |
+| Fuel mix | `https://mis.nyiso.com/public/csv/rtfuelmix/{YYYYMMDD}rtfuelmix.csv` |
 
-Real-time Data Broker (5-min consolidated LMP table + fuel mix):
+Dated files accumulate 5-minute rows through the day; the app takes the
+latest interval. Today's file is tried first, then yesterday's (covers the
+minutes right after midnight ET). HTTPS is tried before HTTP; cleartext is
+permitted for `mis.nyiso.com` only (`network_security_config.xml`).
 
-```
-https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx?messageType=getlmpconsolidatedtable&returnType=json
-https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx?messageType=getfuelmix&returnType=json
-```
-
-JSON key casing in these feeds has drifted over time, so the parser
-(`MisoApiClient`) is lenient and tries known variants (`loss`/`MLC`,
-`congestion`/`MCC`, etc.). If MISO renames a field, add the variant there.
-
-Node directory: 8 trading hubs + ~30 load-zone CPNodes
-([`miso_nodes.csv`](app/src/main/assets/miso_nodes.csv)).
-
-### NYISO (New York / NYC)
-
-Daily CSVs on `mis.nyiso.com` — the same feeds the
-[NYISOToolkit](https://github.com/m4rz910/NYISOToolkit) Python package
-wraps (`lbmp_rt_5m` and `fuel_mix_5m` in its dataset map):
-
-```
-https://mis.nyiso.com/public/csv/realtime/{YYYYMMDD}realtime_zone.csv
-https://mis.nyiso.com/public/csv/rtfuelmix/{YYYYMMDD}rtfuelmix.csv
-```
-
-`NyisoApiClient` fetches today's file (Eastern Time), takes the latest
-5-minute interval, and falls back to yesterday's file just after midnight.
-HTTPS is tried first with a cleartext-HTTP fallback scoped to
-`mis.nyiso.com` only (see `network_security_config.xml`).
-
-**Sign convention:** NYISO publishes `LBMP = energy + losses − congestion`,
-whereas MISO uses `LMP = energy + congestion + losses`. The NYISO client
-negates the congestion column so every `NodePrice` in the app satisfies the
-same additive identity. (NYC's typically negative published MCC therefore
-shows up as a positive congestion contribution — the intuitive reading.)
-
-Node directory: all 11 NYISO load zones A–K, including **N.Y.C. (Zone J)**
-and Long Island (Zone K)
-([`nyiso_nodes.csv`](app/src/main/assets/nyiso_nodes.csv)). NYISO's public
-real-time zonal feed is zone-level, so within NYC the answer is always
-Zone J.
+**Sign convention:** NYISO publishes `LBMP = energy + losses − congestion`.
+The client negates the congestion column so every price in the app
+satisfies `lmp = energy + congestion + loss`; NYC's typically negative
+published MCC therefore shows as a positive congestion contribution —
+the intuitive reading.
 
 ## Caveats
 
-- **Node coordinates are approximate.** Neither ISO publishes pricing-node
-  geographic coordinates. Hubs are placed at a representative city in their
-  region; load zones at a representative point in their territory.
-  "Nearest" is therefore zone-level, not substation-level accuracy.
-- **Node-name matching.** The directory matches live rows by node name,
-  with per-node aliases (e.g. `ALTW` vs `ALTW.LZ`, `N.Y.C.` vs `NYC`). If a
-  directory entry doesn't appear in the live data the app shows it as
-  `n/a` rather than hiding it — check the live feed and add the actual
-  name as an alias in the market's nodes CSV.
-- The fuel mix is system-wide per market; neither ISO publishes a public
-  per-node generation mix.
-- Market data is for informational use; check MISO's and NYISO's data
-  terms before redistributing.
+- NYISO's public real-time pricing is **zonal**: anywhere in the five
+  boroughs resolves to Zone J. Zone coordinates in the bundled directory
+  are representative points, so "nearest" is zone-level accuracy.
+- The fuel mix is NYISO system-wide; there is no public per-zone mix.
+- NYISO market data is for informational use; check NYISO's data terms
+  before redistributing.
 
 ## Build
 
@@ -90,15 +59,13 @@ Requires Android Studio (or an Android SDK + JDK 17). No API keys or
 `local.properties` secrets needed.
 
 ```bash
-./gradlew :app:assembleDebug   # build APK
-./gradlew :app:testDebugUnitTest   # run unit tests (parsers, haversine, CSV)
+./gradlew :app:assembleDebug        # build APK
+./gradlew :app:testDebugUnitTest    # run unit tests (parsers, haversine, CSV)
 ```
 
-Open the project in Android Studio and run on a device/emulator with Google
-Play services (the app uses FusedLocationProvider). minSdk 26, targetSdk 35.
-
-> Note: this project was authored in a sandbox without an Android SDK, so it
-> has not been compiled yet — expect at most minor fix-ups on first build.
+Run on a device or emulator (API 26+). On an emulator, set a location via
+Extended Controls (⋯) → Location — e.g. Times Square 40.758, −73.985 —
+and click **Set Location**.
 
 ## Project structure
 
@@ -106,26 +73,22 @@ Play services (the app uses FusedLocationProvider). minSdk 26, targetSdk 35.
 app/src/main/java/com/gokul/lmpapp/
 ├── MainActivity.kt              # permission flow + Compose entry point
 ├── data/
-│   ├── Models.kt                # NodeInfo, NodePrice, FuelMix, ...
-│   ├── Market.kt                # Market enum + MarketDataSource interface
-│   ├── MisoApiClient.kt         # MISO Data Broker JSON (lenient parsing)
-│   ├── NyisoApiClient.kt        # NYISO mis.nyiso.com daily CSVs
-│   ├── NodeDirectory.kt         # bundled node CSV + haversine nearest-node
+│   ├── Models.kt                # NodeInfo, NodePrice, FuelMix, LoadSnapshot
+│   ├── Market.kt                # MarketDataSource interface
+│   ├── NyisoApiClient.kt        # mis.nyiso.com CSV fetching + parsing
+│   ├── NodeDirectory.kt         # bundled zone CSV + haversine nearest-zone
 │   └── LmpRepository.kt         # joins live prices with the directory
-├── location/LocationProvider.kt # FusedLocationProvider wrapper
+├── location/LocationProvider.kt # Fused + LocationManager fallback
 └── ui/
-    ├── LmpViewModel.kt          # market selection + 5-min/hourly loops
-    ├── LmpScreen.kt             # nearest-node card, nearby list, fuel mix
+    ├── LmpViewModel.kt          # state + 5-min / hourly refresh loops
+    ├── LmpScreen.kt             # LBMP card, load card, zones, fuel mix
     └── theme/Theme.kt
-app/src/main/assets/miso_nodes.csv    # MISO node directory
-app/src/main/assets/nyiso_nodes.csv   # NYISO zone directory
+app/src/main/assets/nyiso_nodes.csv   # 11 NYISO zones with coordinates
 ```
 
 ## Ideas for later
 
-- More ISOs (PJM, ERCOT, CAISO) — add a `MarketDataSource` implementation,
-  a nodes CSV, and a `Market` enum entry; auto-selection already
-  generalizes to any number of markets.
-- LMP history sparkline (Data Broker also serves ex-ante/ex-post feeds).
+- Day-ahead vs real-time LBMP comparison (`damlbmp` feed).
+- LBMP history sparkline from the accumulated daily file.
 - Home-screen widget and price-spike notifications via WorkManager.
-- Finer-grained node directory (generator CPNodes near known plants).
+- Other ISOs behind the same `MarketDataSource` interface.

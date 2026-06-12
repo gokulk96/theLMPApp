@@ -48,6 +48,23 @@ data class FuelCategory(
     val mw: Double,
 )
 
+/** Real-time actual load for one zone, in MW. */
+data class ZoneLoad(
+    val zoneName: String,
+    val mw: Double,
+)
+
+/** Latest real-time actual load by zone (NYISO "pal" feed). */
+data class LoadSnapshot(
+    val refId: String,
+    val loads: Map<String, ZoneLoad>, // keyed by uppercased zone name
+) {
+    val totalMw: Double get() = loads.values.sumOf { it.mw }
+
+    fun loadFor(node: NodeInfo): ZoneLoad? =
+        node.matchKeys.firstNotNullOfOrNull { loads[it] }
+}
+
 data class FuelMix(
     val refId: String,
     val totalMw: Double,

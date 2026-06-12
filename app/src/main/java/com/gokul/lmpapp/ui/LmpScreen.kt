@@ -38,6 +38,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gokul.lmpapp.data.FuelMix
+import com.gokul.lmpapp.data.LoadSnapshot
 import com.gokul.lmpapp.data.NearbyNode
 import com.gokul.lmpapp.data.NodeType
 import java.util.Locale
@@ -76,6 +77,9 @@ fun LmpScreen(
                 state.lmpError?.let { item { ErrorCard(it, viewModel::refresh) } }
                 state.nearest?.let { nearest ->
                     item { NearestNodeCard(nearest, state.lmpRefId) }
+                    state.loadSnapshot?.let { loads ->
+                        item { LoadCard(loads, nearest) }
+                    }
                 }
                 val others = state.nearbyNodes.filter { it != state.nearest }.take(6)
                 if (others.isNotEmpty()) {
@@ -208,6 +212,54 @@ private fun NearbyNodeRow(item: NearbyNode) {
                 fontWeight = FontWeight.SemiBold,
                 color = item.price?.let { lmpColor(it.lmp) } ?: MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+    }
+}
+
+@Composable
+private fun LoadCard(loads: LoadSnapshot, nearest: NearbyNode) {
+    val zoneLoad = loads.loadFor(nearest.node)
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Real-time actual load", style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column {
+                    Text(
+                        zoneLoad?.let { "%,.0f MW".format(Locale.US, it.mw) } ?: "n/a",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        nearest.node.displayName,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        "%,.0f MW".format(Locale.US, loads.totalMw),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        "NYISO total",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            if (loads.refId.isNotBlank()) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    loads.refId,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }

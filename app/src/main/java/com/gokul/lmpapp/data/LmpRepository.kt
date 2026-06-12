@@ -10,4 +10,6 @@ class LmpRepository(
     }
 
     suspend fun fuelMix(): FuelMix = api.fetchFuelMix()
+
+    suspend fun zoneLoads(): LoadSnapshot = api.fetchZoneLoads()
 }

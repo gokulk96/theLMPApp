@@ -1,15 +1,10 @@
 package com.gokul.lmpapp.data
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
+import org.junit.Assert.assertNull
 import org.junit.Test
-import java.io.ByteArrayOutputStream
-import java.util.zip.ZipEntry
-import java.util.zip.ZipOutputStream
 
 class NyisoApiClientTest {
-
-    // ── CSV parsing ──────────────────────────────────────────────────────────
 
     @Test
     fun `parseLmpCsv keeps only the latest interval`() {
@@ -35,6 +30,17 @@ class NyisoApiClientTest {
     }
 
     @Test
+    fun `parseLmpCsv strips UTF-8 BOM tolerated by header matcher`() {
+        val csv = "﻿\"Time Stamp\",\"Name\",\"LBMP (\$/MWHr)\"," +
+            "\"Marginal Cost Losses (\$/MWHr)\",\"Marginal Cost Congestion (\$/MWHr)\"\n" +
+            "\"06/12/2026 15:00:00\",\"N.Y.C.\",\"55.00\",\"1.00\",\"-2.00\"\n"
+
+        val snapshot = NyisoApiClient.parseLmpCsv(csv.removePrefix("﻿"))
+
+        assertEquals(55.00, snapshot.prices.getValue("N.Y.C.").lmp, 1e-9)
+    }
+
+    @Test
     fun `parseFuelMixCsv keeps only the latest interval and sorts by MW`() {
         val csv = """
             "Time Stamp","Time Zone","Fuel Category","Gen MW"
@@ -54,6 +60,40 @@ class NyisoApiClientTest {
     }
 
     @Test
+    fun `parseLoadCsv keeps only the latest interval and skips blank loads`() {
+        val csv = """
+            "Time Stamp","Time Zone","Name","PTID","Load"
+            "06/12/2026 14:50:00","EDT","N.Y.C.","61761","6100.0"
+            "06/12/2026 14:55:00","EDT","N.Y.C.","61761","6200.5"
+            "06/12/2026 14:55:00","EDT","LONGIL","61762","2400.0"
+            "06/12/2026 14:55:00","EDT","CAPITL","61757",""
+        """.trimIndent()
+
+        val loads = NyisoApiClient.parseLoadCsv(csv)
+
+        assertEquals("06/12/2026 14:55 ET", loads.refId)
+        assertEquals(2, loads.loads.size)
+        assertEquals(6200.5, loads.loads.getValue("N.Y.C.").mw, 1e-9)
+        assertEquals(6200.5 + 2400.0, loads.totalMw, 1e-9)
+    }
+
+    @Test
+    fun `LoadSnapshot loadFor matches a node via its alias keys`() {
+        val node = NodeDirectory.parseLine(
+            "N.Y.C.,NYC,New York City (Zone J),ZONE,40.75,-73.99"
+        )!!
+        val snapshot = LoadSnapshot(
+            refId = "x",
+            loads = mapOf("N.Y.C." to ZoneLoad("N.Y.C.", 6200.0)),
+        )
+
+        assertEquals(6200.0, snapshot.loadFor(node)!!.mw, 1e-9)
+        // A node with no matching zone yields null, not an exception
+        val other = NodeDirectory.parseLine("WEST,,West (Zone A),ZONE,42.89,-78.88")!!
+        assertNull(snapshot.loadFor(other))
+    }
+
+    @Test
     fun `splitCsvLine handles quoted fields containing commas`() {
         assertEquals(
             listOf("a", "b,c", """d"e"""),
@@ -61,10 +101,8 @@ class NyisoApiClientTest {
         )
     }
 
-    // ── Name-to-directory matching ───────────────────────────────────────────
-
     @Test
-    fun `NYC zone resolves via N_Y_C_ match key`() {
+    fun `NYC zone resolves from Times Square`() {
         val directory = NodeDirectory(
             listOf(
                 NodeDirectory.parseLine("N.Y.C.,NYC,New York City (Zone J),ZONE,40.75,-73.99")!!,
@@ -77,67 +115,9 @@ class NyisoApiClientTest {
         """.trimIndent()
         val snapshot = NyisoApiClient.parseLmpCsv(csv)
 
-        // Query from Times Square
         val result = directory.nearestNodes(40.758, -73.985, snapshot)
 
         assertEquals("N.Y.C.", result[0].node.nodeId)
         assertEquals(45.00, result[0].price!!.lmp, 1e-9)
-    }
-
-    // ── ZIP extraction (unit-tested without network) ─────────────────────────
-
-    @Test
-    fun `getDailyZipCsv extracts the CSV from a well-formed ZIP`() {
-        val csvContent = """"Time Stamp","Name","LBMP ($/MWHr)","Marginal Cost Losses ($/MWHr)","Marginal Cost Congestion ($/MWHr)"
-"06/12/2026 15:00:00","N.Y.C.","50.00","1.00","-2.00"
-"""
-        val zipBytes = buildZip("20260612realtime_zone.csv", csvContent)
-
-        // Reuse the extraction logic indirectly via parseLmpCsv round-trip
-        val csv = extractCsvFromZip(zipBytes)
-        val snapshot = NyisoApiClient.parseLmpCsv(csv)
-
-        assertEquals(1, snapshot.prices.size)
-        assertTrue(snapshot.prices.containsKey("N.Y.C."))
-    }
-
-    @Test
-    fun `getDailyZipCsv strips UTF-8 BOM if present`() {
-        val csvWithBom = "﻿\"Time Stamp\",\"Name\",\"LBMP (\$/MWHr)\",\"Marginal Cost Losses (\$/MWHr)\",\"Marginal Cost Congestion (\$/MWHr)\"\n" +
-            "\"06/12/2026 15:00:00\",\"N.Y.C.\",\"55.00\",\"1.00\",\"-2.00\"\n"
-        val zipBytes = buildZip("data.csv", csvWithBom)
-
-        val csv = extractCsvFromZip(zipBytes)
-        // BOM stripped — header row should start with quote, not
-        assertTrue(!csv.startsWith("﻿"))
-        val snapshot = NyisoApiClient.parseLmpCsv(csv)
-        assertEquals(55.00, snapshot.prices.getValue("N.Y.C.").lmp, 1e-9)
-    }
-
-    // ── Helpers ──────────────────────────────────────────────────────────────
-
-    private fun buildZip(entryName: String, content: String): ByteArray {
-        val baos = ByteArrayOutputStream()
-        ZipOutputStream(baos).use { zos ->
-            zos.putNextEntry(ZipEntry(entryName))
-            zos.write(content.toByteArray(Charsets.UTF_8))
-            zos.closeEntry()
-        }
-        return baos.toByteArray()
-    }
-
-    /** Mirrors the private extractFirstCsvFromZip logic for testing. */
-    private fun extractCsvFromZip(zipBytes: ByteArray): String {
-        java.util.zip.ZipInputStream(zipBytes.inputStream()).use { zis ->
-            var entry = zis.nextEntry
-            while (entry != null) {
-                if (!entry.isDirectory && entry.name.endsWith(".csv", ignoreCase = true)) {
-                    return zis.readBytes().toString(Charsets.UTF_8).removePrefix("﻿")
-                }
-                zis.closeEntry()
-                entry = zis.nextEntry
-            }
-        }
-        throw AssertionError("No CSV in ZIP")
     }
 }

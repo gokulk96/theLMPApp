@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gokul.lmpapp.data.FuelMix
 import com.gokul.lmpapp.data.LmpRepository
+import com.gokul.lmpapp.data.LoadSnapshot
 import com.gokul.lmpapp.data.NearbyNode
 import com.gokul.lmpapp.data.NodeDirectory
 import com.gokul.lmpapp.data.NyisoApiClient
@@ -23,6 +24,7 @@ data class LmpUiState(
     val location: UserLocation? = null,
     val lmpRefId: String = "",
     val nearbyNodes: List<NearbyNode> = emptyList(),
+    val loadSnapshot: LoadSnapshot? = null,
     val fuelMix: FuelMix? = null,
     val isLoadingLmp: Boolean = false,
     val isLoadingFuelMix: Boolean = false,
@@ -94,11 +96,14 @@ class LmpViewModel(application: Application) : AndroidViewModel(application) {
             val location = locationProvider.currentLocation()
                 ?: throw IllegalStateException("Could not determine your location")
             val (refId, nodes) = repository.nearbyNodes(location.lat, location.lon)
+            // Load data is supplementary — a failure shouldn't hide the LMP
+            val loads = runCatching { repository.zoneLoads() }.getOrNull()
             _uiState.update {
                 it.copy(
                     location = location,
                     lmpRefId = refId,
                     nearbyNodes = nodes,
+                    loadSnapshot = loads ?: it.loadSnapshot,
                     isLoadingLmp = false,
                 )
             }
