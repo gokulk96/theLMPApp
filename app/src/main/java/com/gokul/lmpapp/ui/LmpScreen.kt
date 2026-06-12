@@ -56,6 +56,9 @@ import kotlin.math.roundToInt
 /** NYISO statewide summer capability, MW — scale for the load bar. */
 private const val NY_SUMMER_CAPACITY_MW = 32_000.0
 
+/** Beyond this distance (km) the user is likely outside New York State. */
+private const val OUT_OF_COVERAGE_KM = 300.0
+
 private val GlassShape = RoundedCornerShape(22.dp)
 private val GlassBg = Color.White.copy(alpha = 0.15f)
 private val GlassBorder = Color.White.copy(alpha = 0.22f)
@@ -133,6 +136,12 @@ fun LmpScreen(
 
                 state.nearest?.let { nearest ->
                     item { Header(nearest) }
+                    if (nearest.distanceKm > OUT_OF_COVERAGE_KM) {
+                        item {
+                            Spacer(Modifier.height(10.dp))
+                            OutOfCoverageCard(nearest.distanceKm)
+                        }
+                    }
                     item { GiantPrice(nearest, state.trend, sky.verdict, sky.condition) }
                     if (state.nextHours.isNotEmpty()) {
                         item {
@@ -500,6 +509,33 @@ private fun LegendChip(name: String, pct: Double) {
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             color = Color.White,
+        )
+    }
+}
+
+// ── coverage warning ─────────────────────────────────────────────────────
+
+@Composable
+private fun OutOfCoverageCard(distanceKm: Double) {
+    val distanceMi = (distanceKm * 0.621371).roundToInt()
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .glass()
+            .padding(14.dp),
+    ) {
+        Text(
+            "Outside NYISO coverage",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = Color.White,
+        )
+        Text(
+            "You're ~$distanceMi mi from New York State. This app covers NYISO (NY only) — showing the nearest zone for reference.",
+            fontSize = 13.sp,
+            color = Color.White.copy(alpha = 0.85f),
+            lineHeight = 18.sp,
+            modifier = Modifier.padding(top = 4.dp),
         )
     }
 }
